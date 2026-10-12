@@ -1,0 +1,8 @@
+{
+  "package": "@deepseek-ai/dsh-compaction-basic",
+  "version": "0.2.0-rc.2",
+  "sourceSha256": "b7ac52f20a36430cf01a66b3a36f23a48ffdb22708d714dbe1fff541b5df4ec5",
+  "changes": [
+    "Expose existing transaction and selection helpers for the adapter. No changes to upstream transaction logic."
+  ]
+}

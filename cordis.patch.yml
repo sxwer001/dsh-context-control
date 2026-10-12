@@ -1,0 +1,5 @@
+- insert:
+    - id: context-control
+      name: dsh-context-control
+      config:
+        triggerChars: 400000

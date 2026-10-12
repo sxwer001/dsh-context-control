@@ -1,0 +1,10 @@
+node_modules/
+.test-runtime/
+.test-state/
+*.tgz
+*.log
+AGENTS.md
+.env
+.env.*
+screenshots/dsh-native-context-control.jpg
+screenshots/dsh-native-context-control-compact.jpg

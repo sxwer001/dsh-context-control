@@ -1,6 +1,6 @@
 {
   "name": "dsh-context-control",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Context occupancy ring, configurable character thresholds and recoverable compaction for DeepSeek Harness.",
   "repository": { "type": "git", "url": "git+https://github.com/sxwer001/dsh-context-control.git" },
   "homepage": "https://github.com/sxwer001/dsh-context-control#readme",

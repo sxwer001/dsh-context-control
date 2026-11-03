@@ -27,14 +27,14 @@ Context usage ring and recoverable compaction for DeepSeek Harness 0.2.0-rc.2. A
 从 [GitHub Releases](https://github.com/sxwer001/dsh-context-control/releases) 下载预构建的 `.tgz` 安装包；使用 DSH 0.2.0-rc.2。也可以直接安装固定版本：
 
 ```sh
-dsh plugin --profile web add https://github.com/sxwer001/dsh-context-control/releases/download/v0.1.2/dsh-context-control-0.1.2.tgz
+dsh plugin --profile web add https://github.com/sxwer001/dsh-context-control/releases/download/v0.1.3/dsh-context-control-0.1.3.tgz
 dsh --profile web
 ```
 
-将 `dsh-context-control-0.1.2.tgz` 通过 dsh 的插件管理安装本地包入口安装，或在支持 CLI 的自定义/web profile 中：
+将 `dsh-context-control-0.1.3.tgz` 通过 dsh 的插件管理安装本地包入口安装，或在支持 CLI 的自定义/web profile 中：
 
 ```powershell
-dsh plugin --profile web add 'D:\path\dsh-context-control-0.1.2.tgz'
+dsh plugin --profile web add 'D:\path\dsh-context-control-0.1.3.tgz'
 dsh --profile web
 ```
 
@@ -78,6 +78,8 @@ npm pack
 ```
 
 脚本只读取安装包，将运行依赖复制到任务目录 `.test-runtime`，不会修改 dsh 安装或用户 profile。测试使用真实 Session、投影、计量、StorageDomain/JSON 存储和原生压缩事务；模型流及命令/工具注册服务由本地脚本提供。覆盖字符计数、设置、事务失败回退、取消、并发、原文恢复、摘要继承和工具调用配对。真实模型的工作连续性和费用收益仍需对照评测。
+
+0.1.3 为模型工具的 `action` 和 `scope` 显式声明字符串类型，修复 Moonshot / Kimi 报告的 Schema 拒绝问题。23 项自动化测试通过，包括实际注册工具的 Schema 检查、五种操作及历史恢复；尚未进行真实 Moonshot API 验收，也不构成 DSH 0.2.1-rc.5 的全面兼容认证。
 
 2026-10-12 本地验证：21 项自动化检查通过；安装包已在独立 dsh web profile 加载，用量环位置、详情、自定义阈值保存、重启后设置恢复、无历史手动压缩提示与非法阈值拒绝均已通过界面检查。0.1.1 将默认卡片收紧到约 264 × 182 像素，设置与原文回查折叠显示；0.1.2 将面板查询改为静默原生 RPC，显示简洁窗口数字，并给设置展开/收起加入 200ms 原生高度过渡，尊重系统减少动画设置。验证了重复开关面板不新增聊天命令事件，RPC 手动压缩及原文恢复仍正常。
 

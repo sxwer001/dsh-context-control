@@ -2,11 +2,11 @@
 
 DeepSeek Harness 上下文压缩插件。模型选择器旁显示上下文用量环，点击可查看窗口占用、有效字符、窗口容量、最近压缩和原文，修改阈值或手动压缩。窗口计量采用“已用 53k，共 1M”的简洁显示；字符压缩触发线单独标明。
 
-**首版目标：DSH 0.2.0-rc.2。** 使用该版本原生 Session、TokenMeter、StorageDomain、投影、命令及 UI 插槽。其他版本需重新验证；不要直接将本包视作兼容所有 dsh 版本。
+**支持 DSH 0.2.0-rc.2 和 0.2.1-rc.5。** 使用宿主原生 Session、TokenMeter、StorageDomain、投影、命令及 UI 插槽。版本声明只覆盖这两个已验证版本；其他版本需重新验证。
 
 ![上下文用量面板](screenshots/dsh-native-context-control-quiet.jpg)
 
-Context usage ring and recoverable compaction for DeepSeek Harness 0.2.0-rc.2. Automatic compaction defaults to **400,000 active characters**, with a configurable threshold and manual control. The compact panel uses quiet native RPC and preserves access to original history. Summaries use the session's model and incur normal model API usage.
+Context usage ring and recoverable compaction for DeepSeek Harness 0.2.0-rc.2 and 0.2.1-rc.5. Automatic compaction defaults to **400,000 active characters**, with a configurable threshold and manual control. The compact panel uses quiet native RPC and preserves access to original history. Summaries use the session's model and incur normal model API usage.
 
 ## 功能
 
@@ -24,17 +24,17 @@ Context usage ring and recoverable compaction for DeepSeek Harness 0.2.0-rc.2. A
 
 ## 安装
 
-从 [GitHub Releases](https://github.com/sxwer001/dsh-context-control/releases) 下载预构建的 `.tgz` 安装包；使用 DSH 0.2.0-rc.2。也可以直接安装固定版本：
+从 [GitHub Releases](https://github.com/sxwer001/dsh-context-control/releases) 下载预构建的 `.tgz` 安装包；使用上述受支持的 DSH 版本。也可以直接安装固定版本：
 
 ```sh
-dsh plugin --profile web add https://github.com/sxwer001/dsh-context-control/releases/download/v0.1.3/dsh-context-control-0.1.3.tgz
+dsh plugin --profile web add https://github.com/sxwer001/dsh-context-control/releases/download/v0.1.4/dsh-context-control-0.1.4.tgz
 dsh --profile web
 ```
 
-将 `dsh-context-control-0.1.3.tgz` 通过 dsh 的插件管理安装本地包入口安装，或在支持 CLI 的自定义/web profile 中：
+将 `dsh-context-control-0.1.4.tgz` 通过 dsh 的插件管理安装本地包入口安装，或在支持 CLI 的自定义/web profile 中：
 
 ```powershell
-dsh plugin --profile web add 'D:\path\dsh-context-control-0.1.3.tgz'
+dsh plugin --profile web add 'D:\path\dsh-context-control-0.1.4.tgz'
 dsh --profile web
 ```
 
@@ -68,7 +68,7 @@ dsh --profile web
 
 ## 开发与验证
 
-需要 Node ≥22.19；本地验证使用 Node 24 和已安装的 DSH 0.2.0-rc.2。
+需要 Node ≥22.19；本地验证使用 Node 24、DSH 0.2.0-rc.2 和 0.2.1-rc.5。
 
 ```powershell
 node scripts/prepare-runtime.mjs 'D:\deepseekharness\resources\app.asar' --include-cli
@@ -77,7 +77,11 @@ npm test
 npm pack
 ```
 
-脚本只读取安装包，将运行依赖复制到任务目录 `.test-runtime`，不会修改 dsh 安装或用户 profile。测试使用真实 Session、投影、计量、StorageDomain/JSON 存储和原生压缩事务；模型流及命令/工具注册服务由本地脚本提供。覆盖字符计数、设置、事务失败回退、取消、并发、原文恢复、摘要继承和工具调用配对。真实模型的工作连续性和费用收益仍需对照评测。
+脚本只读取安装包，按宿主版本将运行依赖复制到 `.test-runtime/<版本>/node_modules`，并切换项目自己的依赖链接，不会修改 dsh 安装或用户 profile。它校验上游压缩代码的 SHA-256，拒绝未经审查的新实现，不自动重写 vendor。测试使用真实 Session、投影、计量、StorageDomain/JSON 存储和原生压缩事务；模型流及命令/工具注册服务由本地脚本提供。覆盖字符计数、设置、事务失败回退、取消、并发、原文恢复、摘要继承和工具调用配对。真实模型的工作连续性和费用收益仍需对照评测。
+
+0.1.4 更新宿主与可选 peer 声明，测试夹具为新版 RPC 提供调用方 Peer，保留 0.1.3 的 Moonshot 工具 Schema 修复。两个受支持宿主各通过 23 项自动化测试。rc.5 还验证了原生安装、Web 用量环、设置保存及实时停用/启用。
+
+2026-11-04，使用本机 DSH 0.2.1-rc.5 可执行文件、0.1.4 安装包和 `opencode-go / deepseek-v4.1-flash`，在隔离 profile 完成真实模型验收。模型实际读取两份测试资料：手动压缩从 55,030 字符降至 29,479；自动压缩提交时从 61,542 降至 30,066。压缩后的无工具回答保留全部六个校验值、禁止删除约束和输出语言要求。原始事件逐条保持不变，原文七页回查和独立进程重启恢复均通过。一次上游连接失败未提交摘要、保留了可见历史，后续新回合成功压缩。测试临时使用 10,000 字符触发线和 128 token / 2 条消息保留预算，仅用于验证安全边界；此结果不证明一般任务的质量或费用收益，也不覆盖真实 Moonshot/Kimi API。
 
 0.1.3 为模型工具的 `action` 和 `scope` 显式声明字符串类型，修复 Moonshot / Kimi 报告的 Schema 拒绝问题。23 项自动化测试通过，包括实际注册工具的 Schema 检查、五种操作及历史恢复；尚未进行真实 Moonshot API 验收，也不构成 DSH 0.2.1-rc.5 的全面兼容认证。
 

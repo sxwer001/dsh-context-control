@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.4 — 2026-11-04
+
+- Support the verified DSH 0.2.0-rc.2 and 0.2.1-rc.5 hosts; align optional DSH, Schemastery and Zod peers with both distributions.
+- Supply the calling Peer in the native RPC test fixture. Preserve the Moonshot/Kimi JSON Schema fix from 0.1.3.
+- Prepare separate test runtimes per host, verify the upstream compaction source hash, and leave vendored source unchanged.
+- Validate 23 automated tests per host and rc.5 native installation, Web settings and plugin lifecycle with scripted responses.
+- Verify rc.5 with the installed executable and a real OpenCode Go model: manual/automatic checkpoints, six-fact recall, original-history recovery, transport-failure rollback and restart persistence.
+
 ## 0.1.3 — 2026-11-04
 
 - Declare string types for the `context_control` tool's `action` and `scope` enums, fixing the missing-type Schema rejection reported with Moonshot / Kimi in #1.

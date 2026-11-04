@@ -208,7 +208,8 @@ test('panel RPC reads and settings do not append chat commands; compaction still
     new TypertRegistry(f.ctx);
     f.ctx.typert.lookups.register('agent', { parameter: 'agent', wire: 'agentId', hostTypeSymbol: 'Agent', wireTypeSymbol: 'SessionId', resolve: id => { if (id !== f.session.id) throw new Error('Session unavailable.'); return f.agent; } });
     const gateway = new TypertGatewayService(f.ctx, { websocketHeartbeatIntervalMs: 30000, streamInboxBytes: 1000000 });
-    const call = request => gateway.invoke({ namespace: 'contextControl', method: 'executeUi', args: { agentId: f.session.id, request }, signal: f.signal });
+    const peer = { signal: f.signal, principal: { kind: 'owner' } };
+    const call = request => gateway.invoke({ namespace: 'contextControl', method: 'executeUi', args: { agentId: f.session.id, request }, signal: f.signal, peer });
     const seq = f.session.seq;
     for (let click = 0; click < 3; click++) assert.equal((await call({ action: 'status' })).sessionId, f.session.id);
     await call({ action: 'configure', settings: { triggerChars: 600000 } });

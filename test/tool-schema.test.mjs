@@ -1,6 +1,30 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fixture } from './fixture.mjs';
+import { Context } from '@deepseek-ai/cordis';
+import { ToolRuntime } from '@deepseek-ai/dsh-tools';
+import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt';
+
+test('native tool registry admits context_control and removes it when unloaded', async () => {
+  const f = await fixture();
+  const ctx = new Context();
+  try {
+    new SystemPrompt(ctx, {});
+    new ToolRuntime(ctx);
+    const dispose = ctx.tools.register(f.tools.get('context_control'));
+    const toolSet = typeof ctx.tools.resolve === 'function'
+      ? await ctx.tools.resolve({ agent: f.agent, signal: f.signal, modelSelection: { provider: 'scripted', model: 'fixture' } })
+      : undefined;
+    const tool = toolSet ? ctx.tools.executable('context_control', f.agent, toolSet) : ctx.tools.get('context_control', f.agent);
+    assert.equal((await tool.execute({ action: 'status' }, { agent: f.agent, signal: f.signal })).sessionId, f.session.id);
+    await dispose();
+    assert.equal(ctx.tools.get('context_control', f.agent), undefined);
+    if (toolSet) {
+      assert.equal(ctx.tools.executable('context_control', f.agent, toolSet), undefined);
+      toolSet.dispose();
+    }
+  } finally { await ctx.fiber.dispose(); await f.close(); }
+});
 
 test('registered tool parameters declare explicit JSON Schema types and preserve constraints', async () => {
   const f = await fixture();

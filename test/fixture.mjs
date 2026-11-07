@@ -14,8 +14,20 @@ import { apply as applyDomain } from '@deepseek-ai/dsh-storage-domain';
 export async function fixture(config = {}, mode = {}) {
   const ctx = new Context();
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'dsh-context-control-'));
+  async function close() { await ctx.fiber.dispose(); if (path.dirname(path.resolve(dir)) !== path.resolve(os.tmpdir()) || !path.basename(dir).startsWith('dsh-context-control-')) throw new Error('Refusing cleanup outside the owned test directory.'); await fs.rm(dir, { recursive: true, force: true }); }
   new SessionStore(ctx);
   new SessionProjectionRegistry(ctx);
+  if (mode.projectionReady) {
+    mode.context = ctx;
+    const register = ctx.sessionProjections.register.bind(ctx.sessionProjections);
+    ctx.sessionProjections.register = definition => {
+      const acquired = Promise.resolve(register(definition));
+      const ready = acquired.then(async handle => { mode.projectionHandle = handle; mode.projectionAcquired = true; await mode.projectionReady; return handle; });
+      // The native asynchronous API retains a callable disposer for older callers.
+      const dispose = () => acquired.then(handle => typeof handle === 'function' ? handle() : handle.dispose());
+      return Object.assign(dispose, { then: ready.then.bind(ready), catch: ready.catch.bind(ready), finally: ready.finally.bind(ready) });
+    };
+  }
   const calls = [];
   const llm = new Service(ctx, 'llm');
   llm.resolveModelInfo = async () => ({ context: { contextWindow: 1000000 }, defaultMaxTokens: 8192 });
@@ -44,7 +56,8 @@ export async function fixture(config = {}, mode = {}) {
   const openDomain = ctx.storageDomain.open.bind(ctx.storageDomain);
   let domainSpec;
   ctx.storageDomain.open = spec => { domainSpec = spec; return openDomain(spec); };
-  await apply(ctx, { retainRecentTokens: 100, retainRecentMessages: 2, ...config });
+  try { await apply(ctx, { retainRecentTokens: 100, retainRecentMessages: 2, ...config }); }
+  catch (error) { await close(); throw error; }
   const session = ctx.sessions.create(SessionId('test-session'), { meta: { cwd: dir } });
   ctx.on('session/flush', async current => {
     await fs.writeFile(path.join(dir, 'session.json'), JSON.stringify({ header: current.header, events: Array.from({ length: current.seq }, (_, seq) => current.eventAt(seq)) }));
@@ -75,5 +88,5 @@ export async function fixture(config = {}, mode = {}) {
     session.append('turn/end', { turn: 0, reason: { kind: 'completed' } });
     user('Continue the final issue and keep the original constraints.');
   }
-  return { ctx, dir, session, agent, signal, calls, user, assistant, history, mode, commands: commandDefinitions, tools: toolDefinitions, reloadSettings: async () => { const control = ctx.contextControl; await control.domain.close(); control.domain = await ctx.storageDomain.open(domainSpec); control.sessionsConfig = control.domain.table('sessions'); control.originals = control.domain.table('originals'); }, restore: async () => { const persisted = JSON.parse(await fs.readFile(path.join(dir, 'session.json'), 'utf8')); return Session.create(session.id, persisted.events, persisted.header); }, close: async () => { await ctx.fiber.dispose(); if (path.dirname(path.resolve(dir)) !== path.resolve(os.tmpdir()) || !path.basename(dir).startsWith('dsh-context-control-')) throw new Error('Refusing cleanup outside the owned test directory.'); await fs.rm(dir, { recursive: true, force: true }); } };
+  return { ctx, dir, session, agent, signal, calls, user, assistant, history, mode, commands: commandDefinitions, tools: toolDefinitions, reloadSettings: async () => { const control = ctx.contextControl; await control.domain.close(); control.domain = await ctx.storageDomain.open(domainSpec); control.sessionsConfig = control.domain.table('sessions'); control.originals = control.domain.table('originals'); }, restore: async () => { const persisted = JSON.parse(await fs.readFile(path.join(dir, 'session.json'), 'utf8')); return Session.create(session.id, persisted.events, persisted.header); }, close };
 }

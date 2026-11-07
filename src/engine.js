@@ -7,9 +7,9 @@ const PROMPT = `Create a precise continuation checkpoint for the coding task abo
 
 export class Compactor {
   constructor(ctx, getSettings) { this.ctx = ctx; this.getSettings = getSettings; this.active = new Map(); this.lifetime = new AbortController(); }
-  dependencies() { return { meter: this.ctx.tokenMeter, summarize: (...args) => this.summarize(...args), recover: () => false }; }
-  async capacity(agent, signal) {
-    const target = agent.session.requestHeader()?.config ?? agent.options;
+  dependencies(target) { return { meter: this.ctx.tokenMeter, summarize: (input, agent, signal) => this.summarize(input, agent, signal, target), recover: () => false }; }
+  async capacity(agent, signal, modelSelection) {
+    const target = modelSelection ?? agent.model?.current() ?? agent.session.requestHeader()?.config ?? agent.options;
     if (!target.provider || !target.model) return { target, info: null };
     return { target, info: await this.ctx.llm.resolveModelInfo(target.provider, target.model, signal) };
   }
@@ -38,21 +38,21 @@ export class Compactor {
     if (end < start) return null;
     return { start: nodes[start], end: nodes[end] };
   }
-  async run(agent, signal, { manual = false, sourceCommandId, expectedGeneration } = {}) {
+  async run(agent, signal, { manual = false, sourceCommandId, expectedGeneration, modelSelection } = {}) {
     if (this.active.has(agent.session.id)) throw new ManualCompactionError('busy', 'A context compaction is already running.');
-    const promise = this.perform(agent, AbortSignal.any([signal, this.lifetime.signal]), { manual, sourceCommandId, expectedGeneration });
+    const promise = this.perform(agent, AbortSignal.any([signal, this.lifetime.signal]), { manual, sourceCommandId, expectedGeneration, modelSelection });
     this.active.set(agent.session.id, promise);
     try { return await promise; } finally { this.active.delete(agent.session.id); }
   }
   async perform(agent, signal, options) {
     signal.throwIfAborted();
     const execute = async operationSignal => {
-      const { info } = await this.capacity(agent, operationSignal);
+      const { target, info } = await this.capacity(agent, operationSignal, options.modelSelection);
       if (options.expectedGeneration !== undefined && options.expectedGeneration !== agent.session.surface.replaceGeneration) throw new ManualCompactionError('changed', 'The context changed; refresh the panel before compressing.');
       const measurement = this.ctx.tokenMeter.measure(agent.session);
       const range = this.select(agent, measurement, info);
       if (!range) return null;
-      return compactSurfaceRegion(this.dependencies(), agent.session, range.start, range.end, agent, {
+      return compactSurfaceRegion(this.dependencies(target), agent.session, range.start, range.end, agent, {
         owner: options.manual ? null : 'current-turn', stability: options.manual ? 'selected-span' : 'whole-surface',
         ...(options.sourceCommandId ? { sourceCommandId: options.sourceCommandId } : {}),
         ...(options.manual ? { flush: () => this.ctx.sessions.flush(agent.session) } : {})
@@ -66,9 +66,9 @@ export class Compactor {
       throw error;
     }
   }
-  async summarize(input, agent, signal) {
+  async summarize(input, agent, signal, target) {
     const config = this.getSettings(agent.session.id);
-    const routed = agent.session.requestHeader()?.config ?? agent.options;
+    const routed = target ?? agent.model?.current() ?? agent.session.requestHeader()?.config ?? agent.options;
     const provider = config.summarizationProvider || routed.provider;
     const model = config.summarizationModel || routed.model;
     if (!provider || !model) throw new Error('No model route is available for the checkpoint.');

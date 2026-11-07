@@ -111,19 +111,19 @@ export class ContextControl extends TypertRemoteService {
     }
     return { entries, nextOffset: index < originals.length ? index : null };
   }
-  async automatic(agent, signal, overflow = false, turn) {
+  async automatic(agent, signal, overflow = false, turn, modelSelection) {
     const config = this.configFor(agent.session.id);
     if (overflow ? !config.overflowRecoveryEnabled : !config.autoEnabled) return false;
     if (!overflow && turn !== undefined && this.failedTurns.get(agent.session) === turn) return false;
     const view = this.ctx.sessionProjections.snapshot(agent.session, ['contextControlMetrics']).values.contextControlMetrics;
-    const { target, info } = await this.compactor.capacity(agent, signal);
+    const { target, info } = await this.compactor.capacity(agent, signal, modelSelection);
     const measurement = this.ctx.tokenMeter.measure(agent.session);
     const safety = safetyThreshold(config, info, agent.session.requestHeader()?.config);
     if (!overflow && !shouldCompact(config, view?.chars ?? 0, measurement.totalTokens, safety)) return false;
     const fingerprint = `${agent.session.surface.replaceGeneration}:${agent.session.surface.nodes.at(-1)}:${config.triggerChars}:${target.provider}/${target.model}`;
     if (!overflow && this.attempts.get(agent.session) === fingerprint) return false;
     this.attempts.set(agent.session, fingerprint);
-    const result = await this.compactor.run(agent, signal);
+    const result = await this.compactor.run(agent, signal, { modelSelection: target });
     if (result) { this.failures.delete(agent.session); this.failedTurns.delete(agent.session); }
     else this.failures.set(agent.session, 'No safe history range: recent work and the latest user request are protected.');
     return result !== null;
@@ -136,7 +136,7 @@ export async function apply(ctx, configured = {}) {
   const control = new ContextControl(ctx, configured, domain);
   const lifetime = new AbortController();
   ctx.effect(() => async () => { lifetime.abort(); control.pending.clear(); control.compactor.lifetime.abort(); await Promise.allSettled([...control.compactor.active.values()]); await control.domain.close(); }, 'context-control operations and persistent data');
-  ctx.effect(() => ctx.sessionProjections.register({ key: 'contextControlMetrics', stateVersion: 1, stateSchema: StateSchema, init: () => initialMetrics(), apply: foldMetrics, wire: { viewSchema: ViewSchema, view: metricsView } }), 'context-control metrics');
+  control.metricsProjection = await ctx.sessionProjections.register({ key: 'contextControlMetrics', stateVersion: 1, stateSchema: StateSchema, init: () => initialMetrics(), apply: foldMetrics, wire: { viewSchema: ViewSchema, view: metricsView } });
   ctx.effect(() => ctx.commands.register({ definitionId: CommandDefinitionId('dsh-context-control'), name: 'context-control', description: 'Inspect, configure or compact context, and retrieve originals', input: { hint: 'status | compact | JSON operation' }, handler: async invocation => {
     try {
       const input = invocation.rawInput.trim();
@@ -149,13 +149,13 @@ export async function apply(ctx, configured = {}) {
     const agent = exec.agent ?? ctx.agents.requireInitiator();
     return control.operation(agent, args, exec.signal);
   } }), 'context-control model tool');
-  ctx.on('agent/pre-step', async ({ agent, signal, turn }, next) => {
+  ctx.on('agent/pre-step', async ({ agent, signal, turn, modelSelection }, next) => {
     const decision = await next();
     if (decision.kind !== 'reject' && !signal.aborted) {
       try {
         const pending = control.pending.get(agent.session.id);
-        if (pending) { control.pending.delete(agent.session.id); await control.compactor.run(agent, signal, pending); }
-        else await control.automatic(agent, signal, false, turn);
+        if (pending) { control.pending.delete(agent.session.id); await control.compactor.run(agent, signal, { ...pending, modelSelection }); }
+        else await control.automatic(agent, signal, false, turn, modelSelection);
       }
       catch (error) { control.failedTurns.set(agent.session, turn); control.failures.set(agent.session, safeError(error)); ctx.logger.warn(`context-control: ${safeError(error)}`); }
     }
